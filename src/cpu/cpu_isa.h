@@ -11,7 +11,7 @@ namespace ctranslate2 {
       AVX,
       AVX2,
       AVX512,
-#elif defined(CT2_ARM64_BUILD)
+#elif defined(CT2_ARM64_BUILD) || defined(__ARM_NEON)
       NEON,
 #endif
     };
@@ -39,7 +39,25 @@ namespace ctranslate2 {
   }
 
 #define SINGLE_ARG(...) __VA_ARGS__
+
+
+
 #ifdef CT2_WITH_CPU_DISPATCH
+#ifdef ANDROID
+#if defined(__aarch64__) || defined(CT2_ARM64_BUILD)
+#  define CPU_ISA_DISPATCH(STMTS)                             \
+  switch (cpu::get_cpu_isa()) {                               \
+    CPU_ISA_CASE(cpu::CpuIsa::NEON, SINGLE_ARG(STMTS))        \
+    CPU_ISA_DEFAULT(cpu::CpuIsa::GENERIC, SINGLE_ARG(STMTS))  \
+  }
+#else
+#  define CPU_ISA_DISPATCH(STMTS)                             \
+  switch (cpu::get_cpu_isa()) {                               \
+    CPU_ISA_DEFAULT(cpu::CpuIsa::GENERIC, SINGLE_ARG(STMTS))   \
+  }
+#endif
+#endif
+
 #if defined(CT2_X86_BUILD)
 #  define CPU_ISA_DISPATCH(STMTS)                             \
   switch (cpu::get_cpu_isa()) {                               \

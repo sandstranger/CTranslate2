@@ -7,7 +7,7 @@ endif()
 
 project(ctranslate2)
 
-option(WITH_MKL "Compile with Intel MKL backend" ON)
+option(WITH_MKL "Compile with Intel MKL backend" OFF)
 option(WITH_DNNL "Compile with DNNL backend" OFF)
 option(WITH_ACCELERATE "Compile with Accelerate backend" OFF)
 option(WITH_OPENBLAS "Compile with OpenBLAS backend" OFF)
@@ -48,7 +48,7 @@ else()
   set(INTEL_ROOT_DEFAULT "/opt/intel")
 endif()
 set(INTEL_ROOT ${INTEL_ROOT_DEFAULT} CACHE FILEPATH "Path to Intel root directory")
-set(OPENMP_RUNTIME "INTEL" CACHE STRING "OpenMP runtime (INTEL, COMP, NONE)")
+set(OPENMP_RUNTIME "COMP" CACHE STRING "OpenMP runtime (INTEL, COMP, NONE)")
 
 # Set Release build type by default to get sane performance.
 if(NOT CMAKE_BUILD_TYPE)
@@ -62,6 +62,7 @@ if(APPLE)
   set(CMAKE_OSX_DEPLOYMENT_TARGET 10.13)
 endif()
 
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 # Read version from version.py
 file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/python/ctranslate2/version.py VERSION_FILE)
