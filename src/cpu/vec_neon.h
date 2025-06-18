@@ -142,8 +142,29 @@ namespace ctranslate2 {
       static inline value_type mul(value_type a, value_type b) {
         return vmulq_f32(a, b);
       }
-
+#if  defined(__arm__)
       static inline value_type div(value_type a, value_type b) {
+          value_type recip = vrecpeq_f32(b);
+          recip = vmulq_f32(vrecpsq_f32(b, recip), recip);
+          recip = vmulq_f32(vrecpsq_f32(b, recip), recip);  // Повтори для точности
+          return vmulq_f32(a, recip);
+      }
+
+      static inline value_type mul_add(value_type a, value_type b, value_type c) {
+          return vmlaq_f32(c, a, b);  // c + a
+      }
+
+      static inline float reduce_add(value_type a) {
+          float32x2_t tmp = vadd_f32(vget_low_f32(a), vget_high_f32(a));
+          return vget_lane_f32(vpadd_f32(tmp, tmp), 0);
+      }
+
+      static inline float reduce_max(value_type a) {
+          float32x2_t tmp = vmax_f32(vget_low_f32(a), vget_high_f32(a));
+          return vget_lane_f32(vpmax_f32(tmp, tmp), 0);
+      }
+#else
+static inline value_type div(value_type a, value_type b) {
         return vdivq_f32(a, b);
       }
 
@@ -158,7 +179,7 @@ namespace ctranslate2 {
       static inline float reduce_max(value_type a) {
         return vmaxvq_f32(a);
       }
-
+#endif
       static inline value_type round(value_type v) {
 #ifdef __aarch64__
         return vrndiq_f32(v);

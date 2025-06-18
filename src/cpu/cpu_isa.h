@@ -41,13 +41,19 @@ namespace ctranslate2 {
 #define SINGLE_ARG(...) __VA_ARGS__
 
 
-
-#ifdef CT2_WITH_CPU_DISPATCH
-#ifdef ANDROID
-#if defined(__aarch64__) || defined(CT2_ARM64_BUILD)
+#if ANDROID
+#if defined(__aarch64__) || defined(CT2_ARM64_BUILD) || defined(__arm__)
 #  define CPU_ISA_DISPATCH(STMTS)                             \
   switch (cpu::get_cpu_isa()) {                               \
     CPU_ISA_CASE(cpu::CpuIsa::NEON, SINGLE_ARG(STMTS))        \
+    CPU_ISA_DEFAULT(cpu::CpuIsa::GENERIC, SINGLE_ARG(STMTS))  \
+  }
+#elif defined(CT2_X86_BUILD)
+#  define CPU_ISA_DISPATCH(STMTS)                             \
+  switch (cpu::get_cpu_isa()) {                               \
+    CPU_ISA_CASE(cpu::CpuIsa::AVX512, SINGLE_ARG(STMTS))      \
+    CPU_ISA_CASE(cpu::CpuIsa::AVX2, SINGLE_ARG(STMTS))        \
+    CPU_ISA_CASE(cpu::CpuIsa::AVX, SINGLE_ARG(STMTS))         \
     CPU_ISA_DEFAULT(cpu::CpuIsa::GENERIC, SINGLE_ARG(STMTS))  \
   }
 #else
@@ -58,6 +64,8 @@ namespace ctranslate2 {
 #endif
 #endif
 
+#if !ANDROID
+#if CT2_WITH_CPU_DISPATCH
 #if defined(CT2_X86_BUILD)
 #  define CPU_ISA_DISPATCH(STMTS)                             \
   switch (cpu::get_cpu_isa()) {                               \
@@ -98,4 +106,5 @@ namespace ctranslate2 {
   switch (cpu::get_cpu_isa()) {                               \
     CPU_ISA_DEFAULT(cpu::CpuIsa::GENERIC, SINGLE_ARG(STMTS))  \
   }
+#endif
 #endif
