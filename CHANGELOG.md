@@ -4,6 +4,27 @@
 
 ### Fixes and improvements
 
+## [v4.6.2](https://github.com/OpenNMT/CTranslate2/releases/tag/v4.6.2) (2025-12-05)
+
+### New features
+
+* Qwen 3 support (#1943) by [@jordimas](https://github.com/jordimas)
+* Gemma 3 text support (#1936) by [@jordimas](https://github.com/jordimas)
+
+### Fixes and improvements
+
+* Fixed pkg_resources Deprecated Warning (#1911) by [@thawancomt](https://github.com/thawancomt)
+* Disable INT8 for sm120 - Blackwell GPUs (#1937) by [@Purfview](https://github.com/Purfview)
+* FIX: package libctranslate2.so in wheel to avoid build fail (#1920) by [@yzewei](https://github.com/yzewei)
+
+## [v4.6.1](https://github.com/OpenNMT/CTranslate2/releases/tag/v4.6.1) (2025-11-07)
+
+### New features
+
+* Python 3.14 support (#1926)
+* Support for Cuda 12.4 (#1925)
+* Update Intel oneAPI to version 2025.3 (#1931)
+
 ## [v4.6.0](https://github.com/OpenNMT/CTranslate2/releases/tag/v4.6.0) (2025-04-08)
 Note: The Ctranslate2 Python package now supports python 3.13, drop the support for python 3.8.
 
