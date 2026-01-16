@@ -38,8 +38,6 @@ namespace ctranslate2 {
       StorageView positions({queries_length, keys_length}, DataType::INT32);
       auto* positions_data = positions.data<int32_t>();
 
-      const dim_t offset = keys_length - queries_length;
-
       for (dim_t i = 0; i < queries_length; ++i) {
         auto* row = positions_data + i * keys_length;
         for (dim_t j = 0; j < keys_length; ++j) {
@@ -336,6 +334,14 @@ namespace ctranslate2 {
       return _d_model;
     }
 
+    void MultiHeadAttention::apply_k_norm(StorageView& keys_proj) const {
+      if (_k_norm) {
+        StorageView keys_normed(keys_proj.dtype(), keys_proj.device());
+        (*_k_norm)(keys_proj, keys_normed);
+        keys_proj = std::move(keys_normed);
+      }
+    }
+
     void MultiHeadAttention::apply_qk_norm(StorageView& queries_proj, StorageView& keys_proj) const {
       if (_q_norm) {
         StorageView queries_normed(queries_proj.dtype(), queries_proj.device());
@@ -343,11 +349,7 @@ namespace ctranslate2 {
         queries_proj = std::move(queries_normed);
       }
 
-      if (_k_norm) {
-        StorageView keys_normed(keys_proj.dtype(), keys_proj.device());
-        (*_k_norm)(keys_proj, keys_normed);
-        keys_proj = std::move(keys_normed);
-      }
+      apply_k_norm(keys_proj);
     }
 
     void MultiHeadAttention::process_cross_attention(
@@ -372,6 +374,13 @@ namespace ctranslate2 {
           if (values_padder)
             values_padder->add_padding(fused_proj);
           ops::Split(2, {_d_head, _d_head})(fused_proj, keys_proj, values_proj);
+
+          apply_k_norm(keys_proj);
+          keys_proj.expand_dims(1);
+          values_proj.expand_dims(1);
+          replicate_heads(keys_proj, _num_heads);
+          replicate_heads(values_proj, _num_heads);
+
         } else if (_num_heads_kv < _num_heads) { // GQA (Grouped-Query Attention)
           if (values_padder)
             values_padder->add_padding(fused_proj);
@@ -379,39 +388,18 @@ namespace ctranslate2 {
           const ops::Split split_op(2, {_num_heads_kv * _d_head, _num_heads_kv * _d_head});
           split_op(fused_proj, keys_proj, values_proj);
 
-          if (_merge_time_and_head_dims) {
-            // Keep in merged format - just reshape, don't split heads
-            keys_proj.reshape({keys_proj.dim(0), -1, _d_head});
-            values_proj.reshape({values_proj.dim(0), -1, _d_head});
-            
-            if (_k_norm) {
-              StorageView keys_normed(keys_proj.dtype(), keys_proj.device());
-              (*_k_norm)(keys_proj, keys_normed);
-              keys_proj = std::move(keys_normed);
-            }
-          } else {
-            // Use standard 4D format
-            split_heads(keys_proj, _num_heads_kv);
-            split_heads(values_proj, _num_heads_kv);
+          split_heads(keys_proj, _num_heads_kv);
+          split_heads(values_proj, _num_heads_kv);
 
-            if (_k_norm) {
-              StorageView keys_normed(keys_proj.dtype(), keys_proj.device());
-              (*_k_norm)(keys_proj, keys_normed);
-              keys_proj = std::move(keys_normed);
-            }
+          apply_k_norm(keys_proj);
 
-            replicate_heads(keys_proj, _num_heads / _num_heads_kv);
-            replicate_heads(values_proj, _num_heads / _num_heads_kv);
-          }
-        } else {
+          replicate_heads(keys_proj, _num_heads / _num_heads_kv);
+          replicate_heads(values_proj, _num_heads / _num_heads_kv);
+        } else { //Standard Multi-Head Attention (MHA)
           split_heads(fused_proj, 2 * _num_heads, values_padder);
           ops::Split(1)(fused_proj, keys_proj, values_proj);
 
-          if (_k_norm) {
-            StorageView keys_normed(keys_proj.dtype(), keys_proj.device());
-            (*_k_norm)(keys_proj, keys_normed);
-            keys_proj = std::move(keys_normed);
-          }
+          apply_k_norm(keys_proj);
         }
 
         if (cached_keys != nullptr) {
@@ -429,15 +417,7 @@ namespace ctranslate2 {
       if (queries_proj.dim(1) == 1 && cached_keys)
         beam_size = queries_proj.dim(0) / cached_keys->dim(0);
 
-      if (_num_heads_kv < _num_heads && _merge_time_and_head_dims) {
-        if (queries_padder)
-          queries_padder->add_padding(queries_proj);
-
-        // Reshape queries to merge time and head dims
-        queries_proj.reshape({queries_proj.dim(0) / beam_size, -1, _d_head});
-      } else {
-        split_heads(queries_proj, _num_heads, queries_padder, beam_size);
-      }
+      split_heads(queries_proj, _num_heads, queries_padder, beam_size);
     }
 
     void MultiHeadAttention::operator()(const StorageView& queries,
@@ -590,7 +570,7 @@ namespace ctranslate2 {
       } else {
         combine_heads(context, _num_heads, queries_padder, beam_size);
       }
-      _linear.back()(context, output);
+      _linear.back()(context, output, _layer_norm ? &queries : nullptr);
 
       if (_tensor_parallel) {
         Shape shape = output.shape();
@@ -599,12 +579,8 @@ namespace ctranslate2 {
         ops_reduce_all(output, tmp);
         output = std::move(tmp);
       }
-      if (_layer_norm) {
-        ops::Add()(queries, output, output);
-
-        if (!_pre_norm)
-          (*_layer_norm)(output, output);
-      }
+      if (_layer_norm && !_pre_norm)
+        (*_layer_norm)(output, output);
     }
 
     void MultiHeadAttention::split_heads(StorageView& x,
