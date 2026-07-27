@@ -765,16 +765,10 @@ elseif(WITH_HIP)
     ${CUDA_SOURCES}
   )
 
-  if (DEFINED CMAKE_BUILD_TYPE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(SAFFAL_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/../../../../SAFFAL/saffal/build/intermediates/merged_native_libs/debug/mergeDebugNativeLibs/out/lib/${ANDROID_ABI}/libsaffal.so")
-  else ()
-    set(SAFFAL_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/../../../../SAFFAL/saffal/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib/${ANDROID_ABI}/libsaffal.so")
-  endif ()
-
   add_compile_definitions(__HIP_PLATFORM_AMD__)
   add_compile_definitions(__HIP_PLATFORM_HCC__)
   target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/include ${ROCM_PATH}/include /include)
-  target_link_libraries(${PROJECT_NAME} PRIVATE ${SAFFAL_LIBRARY} hiprand roc::hipblas roc::rocprim roc::rocthrust hip::hipcub)
+  target_link_libraries(${PROJECT_NAME} PRIVATE hiprand roc::hipblas roc::rocprim roc::rocthrust hip::hipcub)
 
   set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE CXX)
 
